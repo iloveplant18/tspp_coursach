@@ -16,6 +16,10 @@ class Source {
         this.opinion = opinion;
         this.photo = photo;
     }
+
+    getArr() {
+        return [this.id, this.name, this.task, this.interview, this.opinion, this.photo];
+    }
 }
 
 

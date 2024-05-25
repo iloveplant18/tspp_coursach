@@ -10,6 +10,14 @@ class User {
         this.name = name;
         this._password = pas;
     }
+
+    getPassword() {
+        return this._password;
+    }
+
+    getArr() {
+        return [this.id, this.name, this._password];
+    }
 }
 
 class Redactor extends User {
@@ -45,6 +53,10 @@ class Worker extends User {
     getSourcesId() {
         return this._sourcesIdList;
     }
+
+    getArr() {
+        return [this.id, this.name, this._password, this._sourcesIdList];
+    }
 }
 
 class Designer extends Worker {
@@ -53,11 +65,11 @@ class Designer extends Worker {
     }    
 }
 
-class Journalst extends Worker {
+class Journalist extends Worker {
     constructor(id, name, pas, sourcesIdList) {
         super(id, name, pas, sourcesIdList);
     }    
 }
 
 
-module.exports = {Journalst, Designer, Redactor};
+module.exports = {Journalist, Designer, Redactor};

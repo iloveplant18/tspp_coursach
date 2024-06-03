@@ -35,14 +35,16 @@ class Worker extends User {
     }
 
     addSource(sourceId) {
-        if (sourceId in this._sourcesIdList) return 0;
+        sourceId = +sourceId;
+
+        if (this._sourcesIdList.includes(sourceId)) return 0;
 
         this._sourcesIdList.push(sourceId);
         return 1;
     }
 
     delSource(sourceId) {
-        let index = this._sourcesIdList.indexOf(sourceId);
+        let index = this._sourcesIdList.indexOf(+sourceId);
 
         if (index == -1) return 0;
 

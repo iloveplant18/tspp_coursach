@@ -24,6 +24,7 @@ class BusinessLogic {
     constructor(user, sources, usersList) {
         this._sources = sources;
         this._users = usersList;
+        this.sortingById(this._users);
         this._user = user;
 
         this._workers = [];
@@ -42,6 +43,10 @@ class BusinessLogic {
         return this._workers;
     }
 
+    getUsers() {
+        return this._users;
+    }
+
     addSource(source) {
         for (let i of this._sources) {
             if (i.id == source.id) {
@@ -50,6 +55,8 @@ class BusinessLogic {
         }
 
         this._sources.push(source);
+        this.sortingById(this._sources);
+
         return 1;
     }
 
@@ -85,6 +92,13 @@ class BusinessLogic {
         }
 
         this._users.push(user);
+        this.sortingById(this._users);
+
+        if (!(user instanceof users.Redactor)) {
+            this._workers.push(user);
+            this.sortingById(this._workers);
+        }
+
         return 1;
     }
 
@@ -103,6 +117,18 @@ class BusinessLogic {
         }
         
         return 0;
+    }
+
+    sortingById(table) {
+        for (let i = 0; i < table.length - 1; i++) {
+            for (let j = 0; j < table.length - 1 - i; j++) {
+                if (table[j].id > table[j + 1].id) {
+                    let temp = table[j];
+                    table[j] = table[j + 1];
+                    table[j + 1] = temp;
+                }
+            }
+        }
     }
 
     setSourceName(source, name) {
@@ -183,6 +209,7 @@ class ConsoleOutput {
         // дальше нормальный код
 
         this.bl = new BusinessLogic(i, srcs, this._users);
+        this._users = this.bl.getUsers();
 
         this.createMenu();
 
@@ -235,6 +262,7 @@ class ConsoleOutput {
                 if (item == 'Работа с исходниками') {
                     let table = this.bl.getSources();
                     let description = 'Enter - редактирование\ndelete - удаление';
+                    if (this._user instanceof users.Redactor) description += '\nn - добавление';
                     let header = 'id  name  task  interview  opinion  photo';
             
                     this.currentTableName = 'sources';
@@ -244,11 +272,11 @@ class ConsoleOutput {
                 }
                 else if (item == 'Работа с сотрудниками') {
                     let table = this.bl.getWorkers();
-                    let description = 'Enter - редактирование\ndelete - удаление';
+                    let description = 'Enter - редактирование\ndelete - удаление\nn - добавление\na - назначить исходник\nd - удаление исходника';
                     let header = 'id  name  password  sources_list';
 
                     this.currentTableName = 'users';
-            
+
                     this.prepareActions();
                     this.showTable(table, description, header);
                 }
@@ -260,7 +288,7 @@ class ConsoleOutput {
         }
     }
 
-    prepareActions(tableName) {
+    prepareActions() {
         let redactableColsObj = {
             'sources': {
                 'redactor': [1, 2, 3, 4, 5],
@@ -337,6 +365,137 @@ class ConsoleOutput {
                 this.start();
             }
         }
+
+        if (this.userType == 'redactor') {
+            Object.assign(this.keyObj, {
+                'n': () => {
+                    this.addRow();    
+                },
+            });
+
+            if (this.currentTableName == 'users') {
+                Object.assign(this.keyObj, {    
+                    'a': () => {
+                        let user = table[this.currentItem];
+                        this.appointSource(user);
+                    },
+                    'd': () => {
+                        let user = table[this.currentItem];
+                        this.delSource(user);
+                    }
+                });
+            }
+        }
+    }
+
+    // назначаем исходник челу
+    appointSource(user) {
+        let id = this.prompt("Введите id источника для назначения его работнику");
+        
+        let sources = this.bl.getSources();
+        for (let i of sources) {
+            if (i.id == id) {
+                if (user.addSource(id)) {
+                    console.log("Источник добавлен успешно");
+                    return;
+                }
+
+                console.log("Такой источник уже есть");
+                return;
+            }
+        }
+
+        console.log('Нет источника с таким id');
+    }
+
+    // удаляем исходник у чела
+    delSource(user) {
+        let id = this.prompt("Введите id источника для удаления его у работника");
+        
+        if (user.delSource(id)) {
+            console.log('Удалено');
+            return;
+        }
+
+        console.log('У работника нет источника с таким id. Как можно пытаться забрать то чего нет');
+    }
+
+    // добавление значения в списки пользователей/исходников
+    addRow() {
+        console.clear();
+        let questions;
+        let id;
+        let table;
+
+        console.log("Добавлениие элемента");
+
+        if (this.currentTableName == 'sources') {
+            questions = ['Введите название ', 'Введите задание '];
+            table = this.bl.getSources();
+        }
+        else if (this.currentTableName == 'users') {
+            questions = ['Введите имя ', 'Введите пароль '];
+            table = this.bl.getUsers();
+        }
+
+        let answers = [];
+
+        for (let i of questions) {
+            let ans = this.prompt(i);
+            answers.push(ans);
+        }
+
+        for (let i = 0; i <= table.length; i++) {
+            if (table[i]?.id != i) {
+                id = i;
+                break;
+            }
+        }
+
+        if (this.currentTableName == 'sources') {
+            let src = new sources.Source(id, ...answers);
+            this.bl.addSource(src);
+        }
+        else if (this.currentTableName == 'users') {
+            let choiceMenu = ['1. Journalist', '2. Designer', '3. Redactor'];
+            let choice,
+            worker;
+
+            do {
+                choice = Number(this.choice(choiceMenu));
+            }
+            while (isNaN(Number(choice)) || Number(choice) > choiceMenu.length || Number(choice) < 1)
+
+            switch (choice) {
+                case 1:
+                    worker = new users.Journalist(id, ...answers);
+                    break;
+                case 2:
+                    worker = new users.Designer(id, ...answers);
+                    break;
+                case 3:
+                    worker = new users.Redactor(id, ...answers);
+            }
+
+            let resArr = ['неудачно', 'успешно'];
+
+            console.log(`Добавление завершилось ${resArr[this.bl.addUser(worker)]}, нажмиете на стрелочку чтобы продолжить работу`);
+        }
+    }
+
+    // Выбор из нескольких позиций, возвращает полльзовательский ввод
+    choice(menu) {
+        let obj = this.keyObj;
+        this.keyObj = {}; 
+
+        this.currentItem = -1;
+        this.printMenu(menu);
+
+        let answ = this.prompt("Введите номер понравившегося варианта: ");
+
+        this.keyObj = obj;
+
+        return answ;
     }
 
     // отрисовка таблицы

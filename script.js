@@ -1,5 +1,6 @@
 const users = require('./users');
 const sources = require('./basics');
+const saveLoad = require('./files');
 
 const chalk = require('chalk');
 
@@ -33,6 +34,13 @@ class BusinessLogic {
                 this._workers.push(i);
             }
         }
+
+        this.saveLoad = new saveLoad.FilesJSON();
+    }
+
+    save() {
+        this.saveLoad.saveSources(this._sources);
+        this.saveLoad.saveUsers(this._users);
     }
 
     getSources() {
@@ -159,8 +167,10 @@ class BusinessLogic {
 
 
 class ConsoleOutput {
-    constructor(users) {
-        this._users = users;
+    constructor() {
+        this.saveLoad = new saveLoad.FilesJSON();
+        this._users = this.saveLoad.loadUsers();
+        this._user = null;
         this.prompt = require('prompt-sync')();
 
         this.keyObj = {}
@@ -199,14 +209,8 @@ class ConsoleOutput {
 
         this.getUserType();
 
-        // здесь создаем исходники, потом надо будет считывать из файла
-        let srcs = [];
-
-        for (let i = 0; i < 10; i++) {
-            let source = new sources.Source(i, 'istochnik');
-            srcs.push(source);
-        }
-        // дальше нормальный код
+        // считываем исходники
+        let srcs = this.saveLoad.loadSources();
 
         this.bl = new BusinessLogic(i, srcs, this._users);
         this._users = this.bl.getUsers();
@@ -217,8 +221,6 @@ class ConsoleOutput {
     }
 
     getUserType() {
-        console.log(this._user);
-
         if (this._user instanceof users.Redactor) {
             this.userType = 'redactor';
         }
@@ -228,15 +230,14 @@ class ConsoleOutput {
         else if (this._user instanceof users.Designer) {
             this.userType = 'designer';
         }
-
-        console.log(this.userType);
+        else if (this._user instanceof users.Verstak) {
+            this.userType = 'verstalshik';
+        }
     }
 
     // запуск стартового меню
     start() {
         this.currentItem = 0;
-
-        let sources = this.bl.getSources();
 
         console.clear();
         this.printMenu(this.actionsArr);
@@ -261,9 +262,9 @@ class ConsoleOutput {
                 
                 if (item == 'Работа с исходниками') {
                     let table = this.bl.getSources();
-                    let description = 'Enter - редактирование\ndelete - удаление';
-                    if (this._user instanceof users.Redactor) description += '\nn - добавление';
-                    let header = 'id  name  task  interview  opinion  photo';
+                    let description = 'Enter - редактирование';
+                    if (this.userType == 'redactor') description += '\nn - добавление\ndelete - удаление';
+                    let header = ['id',  'name', 'task', 'interview',  'opinion', 'photo'];
             
                     this.currentTableName = 'sources';
 
@@ -273,7 +274,7 @@ class ConsoleOutput {
                 else if (item == 'Работа с сотрудниками') {
                     let table = this.bl.getWorkers();
                     let description = 'Enter - редактирование\ndelete - удаление\nn - добавление\na - назначить исходник\nd - удаление исходника';
-                    let header = 'id  name  password  sources_list';
+                    let header = ['id',  'name',  'password',  'sources_list'];
 
                     this.currentTableName = 'users';
 
@@ -283,6 +284,7 @@ class ConsoleOutput {
             },
             'escape': () => {
                 console.clear();
+                this.bl.save();
                 process.exit(1);
             }
         }
@@ -293,7 +295,8 @@ class ConsoleOutput {
             'sources': {
                 'redactor': [1, 2, 3, 4, 5],
                 'journalist': [3, 4],
-                'designer': [5]
+                'designer': [5],
+                'verstalshik': [1, 2, 3, 4, 5],
             },
             'users': {
                 'redactor': []
@@ -345,21 +348,6 @@ class ConsoleOutput {
                     this.changeData(table);
                 }
             },
-            'delete': () => {
-                if (this.currentTableName == 'sources') {
-                    this.bl.delSource(table[this.currentItem]);
-                    table = this.bl.getSources();
-                }
-                else if (this.currentTableName == 'users') {
-                    this.bl.delUser(table[this.currentItem]);
-                    table = this.bl.getWorkers();
-                }
-
-                if (this.currentItem != 0) this.currentItem--;
-
-                console.clear();
-                this.printTable(table, header, description);
-            },
             'escape': () => {
                 console.clear();
                 this.start();
@@ -370,6 +358,21 @@ class ConsoleOutput {
             Object.assign(this.keyObj, {
                 'n': () => {
                     this.addRow();    
+                },
+                'delete': () => {
+                    if (this.currentTableName == 'sources') {
+                        this.bl.delSource(table[this.currentItem]);
+                        table = this.bl.getSources();
+                    }
+                    else if (this.currentTableName == 'users') {
+                        this.bl.delUser(table[this.currentItem]);
+                        table = this.bl.getWorkers();
+                    }
+    
+                    if (this.currentItem != 0) this.currentItem--;
+    
+                    console.clear();
+                    this.printTable(table, header, description);
                 },
             });
 
@@ -452,12 +455,14 @@ class ConsoleOutput {
             }
         }
 
+        let resArr = ['неудачно', 'успешно'];
+
         if (this.currentTableName == 'sources') {
             let src = new sources.Source(id, ...answers);
-            this.bl.addSource(src);
+            console.log(`Добавление завершилось ${resArr[this.bl.addSource(src)]}, нажмиете на стрелочку чтобы продолжить работу`);
         }
         else if (this.currentTableName == 'users') {
-            let choiceMenu = ['1. Journalist', '2. Designer', '3. Redactor'];
+            let choiceMenu = ['1. Journalist', '2. Designer', '3. Redactor', '4. Verstalshik'];
             let choice,
             worker;
 
@@ -475,9 +480,11 @@ class ConsoleOutput {
                     break;
                 case 3:
                     worker = new users.Redactor(id, ...answers);
+                    break;
+                case 4:
+                    worker = new users.Verstak(id, ...answers);
+                    break;
             }
-
-            let resArr = ['неудачно', 'успешно'];
 
             console.log(`Добавление завершилось ${resArr[this.bl.addUser(worker)]}, нажмиете на стрелочку чтобы продолжить работу`);
         }
@@ -504,9 +511,19 @@ class ConsoleOutput {
             console.log(description);
         }
 
+        this.countRowSpace(table, header);
+
         if (header) {
-            console.log(header);
+            let headerRow = '';
+
+            for (let i = 0; i < header.length; i++) {
+                let spacesNumber = this.spacing[i] - header[i].length + 1;
+                headerRow += header[i] + ' '.repeat(spacesNumber);
+            }
+
+            console.log(headerRow);
         }
+
 
         for (let i = 0; i < table.length; i++) {
             if (this.currentItem == i) {
@@ -523,20 +540,42 @@ class ConsoleOutput {
         let res = '';
 
         for (let i = 0; i < row.length; i++) {
+            let spacesNumber = this.spacing[i] - String(row[i]).length + 1
+
             if (colorRow && this.currentColumn == i) {
                 if (this.redactableColumns.includes(this.currentColumn)) {
-                    res += chalk.bgGreen(row[i]) + ' ';
+                    res += chalk.bgGreen(row[i]) + ' '.repeat(spacesNumber);
                 }
                 else {
-                    res += chalk.bgRed(row[i]) + ' ';
+                    res += chalk.bgRed(row[i]) + ' '.repeat(spacesNumber);
                 }
+
                 continue;
             }
 
-            res += row[i] + ' ';
+            res += row[i] + ' '.repeat(spacesNumber);
         }
 
         return res;
+    }
+
+    countRowSpace(table, header) {
+        let res = [];
+
+        for (let i = 0; i < header.length; i++) {
+            res.push(String(header[i]).length);
+        }
+        
+        for (let i of table) {
+            let row = i.getArr()
+            
+            for (let j = 0; j < row.length; j++) {
+                if (res[j] < String(row[j]).length)
+                res[j] = String(row[j]).length;
+            }
+        }
+
+        this.spacing = res;
     }
 
     // создание главного меню с действиями
@@ -602,13 +641,18 @@ for (let i = 0; i < 10; i++) {
 
 let usrs = [];
 
-for (let i = 0; i < 10; i++) {
+for (let i = 0; i < 6; i++) {
     let user = new users.Designer(i, `User${i}`, '111', [5]);
     usrs.push(user);
 }
 
-for (let i = 11; i < 20; i++) {
+for (let i = 11; i < 17; i++) {
     let user = new users.Journalist(i, `Jr${i}`, '333');
+    usrs.push(user);
+}
+
+for (let i = 20; i < 27; i++) {
+    let user = new users.Verstak(i, `Verstak${i}`, '444');
     usrs.push(user);
 }
 

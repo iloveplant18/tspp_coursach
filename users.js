@@ -73,5 +73,11 @@ class Journalist extends Worker {
     }    
 }
 
+class Verstak extends Worker {
+    constructor(id, name, pas, sourcesIdList) {
+        super(id, name, pas, sourcesIdList);
+    }
+}
 
-module.exports = {Journalist, Designer, Redactor};
+
+module.exports = {Journalist, Designer, Redactor, Verstak};
